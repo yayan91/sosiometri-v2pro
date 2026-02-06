@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sosiometri-Pro</title>
+    
+    <!-- LIBRARIES -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; overflow: hidden; }
+        
+        #login-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            z-index: 9999; display: flex; align-items: center; justify-content: center;
+        }
+
+        .dashboard-container { display: flex; height: 100vh; display: none; }
+        .sidebar { width: 280px; background: #0f172a; color: white; flex-shrink: 0; display: flex; flex-direction: column; }
+        .main-content { flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; background: #f8fafc; }
+        .content-area { flex-grow: 1; padding: 2rem; }
+        
+        .app-header { background: white; padding: 1rem 2rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+        .app-footer { background: white; padding: 1rem 2rem; border-top: 1px solid #e2e8f0; text-align: center; color: #64748b; font-size: 0.875rem; }
+
+        .menu-item { padding: 12px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: #94a3b8; transition: all 0.3s; border-left: 3px solid transparent; }
+        .menu-item:hover, .menu-item.active { background: #1e293b; color: #fff; border-left-color: #6366f1; }
+        
+        /* Network Container - SUPER BESAR */
+        #network-container { height: 1500px; border: 1px solid #e2e8f0; border-radius: 0.5rem; background: #fff; position: relative; }
+        .view-section { display: none; animation: fadeIn 0.3s ease-in-out; }
+        .view-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Custom UI */
+        #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+        .toast { 
+            background: white; border-left: 4px solid #4f46e5; padding: 16px 20px; border-radius: 8px; 
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            display: flex; align-items: center; gap: 12px; min-width: 300px; transform: translateX(100%); transition: transform 0.3s ease-out; pointer-events: auto;
+        }
+        .toast.show { transform: translateX(0); }
+        .toast-success { border-color: #22c55e; }
+        .toast-error { border-color: #ef4444; }
+        
+        /* Modal Base */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px);
+            z-index: 9998; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s;
+        }
+        .modal-overlay.show { opacity: 1; }
+        .modal-box {
+            background: white; width: 95%; max-width: 600px; padding: 24px; border-radius: 16px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            transform: scale(0.95); transition: transform 0.2s;
+            max-height: 90vh; overflow-y: auto;
+        }
+        .modal-overlay.show .modal-box { transform: scale(1); }
+
+        /* Class Selector Styling */
+        .class-selector { background: #334155; padding: 15px; margin-bottom: 10px; border-bottom: 1px solid #475569; }
+        .class-selector select { background: #1e293b; color: white; border: 1px solid #475569; padding: 8px; width: 100%; border-radius: 6px; outline: none; margin-bottom: 10px; }
+        .class-btns { display: flex; gap: 5px; }
+    </style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+    <div class="bg-white p-10 rounded-2xl shadow-2xl max-w-md w-full text-center mx-4">
+        <div class="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl text-indigo-600">
+            <i class="fas fa-network-wired"></i>
+        </div>
+        <h1 class="text-3xl font-bold text-slate-800 mb-2">SocioConnect Pro</h1>
+        <p class="text-slate-500 mb-8">Manajemen Sosiometri Multi-Kelas</p>
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-8 text-left">
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Dikembangkan Oleh:</p>
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-bold">MH</div>
+                <div>
+                    <p class="text-sm font-bold text-slate-800">Muhammad Hasratul</p>
+                    <p class="text-xs text-indigo-600 font-medium">Mappaguru Online</p>
+                </div>
+            </div>
+        </div>
+        <button onclick="enterApp()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition transform hover:scale-105 shadow-lg shadow-indigo-500/30">
+            Masuk Aplikasi <i class="fas fa-arrow-right ml-2"></i>
+        </button>
+        <p class="text-xs text-slate-400 mt-6">Whatsapp Pengembang 085259259767</p>
+    </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="main-dashboard" class="dashboard-container">
+    <aside class="sidebar">
+        <div class="p-6 border-b border-slate-700">
+            <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                <i class="fas fa-network-wired text-indigo-500"></i> SocioConnect
+            </h1>
+            <p class="text-xs text-slate-400 mt-1">Mappaguru Online Edition</p>
+        </div>
+
+        <!-- MANAJEMEN KELAS -->
+        <div class="class-selector">
+            <label class="text-xs text-slate-400 uppercase font-bold mb-1 block">Kelas Aktif:</label>
+            <select id="classDropdown" onchange="switchClass(this.value)">
+                <!-- Options populated by JS -->
+            </select>
+            <div class="class-btns">
+                <button onclick="openPromptModal()" class="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs py-2 rounded flex justify-center gap-1 items-center"><i class="fas fa-plus"></i> Baru</button>
+                <button onclick="confirmDeleteClass()" class="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs py-2 rounded flex justify-center gap-1 items-center"><i class="fas fa-trash"></i> Hapus</button>
+            </div>
+        </div>
+
+        <nav class="flex-1 mt-2 space-y-1">
+            <div class="menu-item active" onclick="switchTab('tab-school')"><i class="fas fa-school w-5"></i> Data Sekolah</div>
+            <div class="menu-item" onclick="switchTab('tab-input')"><i class="fas fa-file-import w-5"></i> Input Data & Excel</div>
+            <div class="menu-item" onclick="switchTab('tab-report')"><i class="fas fa-chart-pie w-5"></i> Hasil & Analisis</div>
+        </nav>
+        
+        <div class="p-4 mt-auto space-y-2 border-t border-slate-700">
+            <button onclick="confirmAction('Reset Hasil Analisis?', 'Hanya data siswa di kelas ini yang dihapus. Data sekolah aman.', resetAnalysis)" class="w-full py-2 px-4 bg-yellow-600/20 text-yellow-400 hover:bg-yellow-600 hover:text-white rounded text-sm transition text-left flex items-center gap-2">
+                <i class="fas fa-eraser w-5"></i> Reset Hasil
+            </button>
+            <button onclick="backupAllData()" class="w-full py-2 px-4 bg-blue-600/20 text-blue-400 hover:bg-blue-600 hover:text-white rounded text-sm transition text-left flex items-center gap-2">
+                <i class="fas fa-save w-5"></i> Backup Data
+            </button>
+            <input type="file" id="restoreInput" class="hidden" accept=".json" onchange="restoreAllData(this)">
+            <button onclick="document.getElementById('restoreInput').click()" class="w-full py-2 px-4 bg-slate-600/20 text-slate-400 hover:bg-slate-600 hover:text-white rounded text-sm transition text-left flex items-center gap-2">
+                <i class="fas fa-upload w-5"></i> Restore Data
+            </button>
+            <button onclick="confirmAction('Reset Total?', 'Semua data akan hilang permanen!', resetApp)" class="w-full py-2 px-4 bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white rounded text-sm transition text-left flex items-center gap-2">
+                <i class="fas fa-trash-alt w-5"></i> Reset Semua
+            </button>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <header class="app-header">
+            <div>
+                <h2 class="text-lg font-bold text-slate-800">Dashboard Sosiometri</h2>
+                <p class="text-xs text-slate-500">Kelola analisis hubungan sosial siswa per kelas.</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="text-right hidden md:block">
+                    <p id="header-teacher-name" class="text-sm font-bold text-slate-700">Guru BK</p>
+                    <p class="text-xs text-indigo-600" id="header-class-name">Kelas: -</p>
+                </div>
+                <div class="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold border border-indigo-200">
+                    <i class="fas fa-user-tie"></i>
+                </div>
+                <button onclick="confirmAction('Keluar Aplikasi?', 'Anda akan diarahkan ke layar login.', logout)" class="ml-2 p-2 text-slate-400 hover:text-red-500 transition" title="Keluar Aplikasi">
+                    <i class="fas fa-sign-out-alt text-xl"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="content-area">
+            <!-- TAB 1: DATA SEKOLAH -->
+            <div id="tab-school" class="view-section active max-w-4xl mx-auto">
+                <div class="bg-white rounded-xl shadow-sm border p-8">
+                    <h2 class="text-2xl font-bold text-slate-800 mb-6 border-b pb-4">Identitas Laporan <span id="label-class-identity" class="text-indigo-600"></span></h2>
+                    <p class="text-sm text-slate-500 mb-4 bg-yellow-50 p-2 rounded border border-yellow-200"><i class="fas fa-info-circle text-yellow-600"></i> Data Identitas Sekolah (Nama Sekolah, Guru, dll) berlaku untuk <strong>SEMUA KELAS</strong>.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div><label class="text-xs font-bold text-slate-500 uppercase">Nama Sekolah</label><input type="text" id="schoolName" class="w-full border rounded p-2"></div>
+                        <div class="md:col-span-2"><label class="text-xs font-bold text-slate-500 uppercase">Alamat</label><input type="text" id="schoolAddress" class="w-full border rounded p-2"></div>
+                        <div><label class="text-xs font-bold text-slate-500 uppercase">Tahun Ajaran</label><input type="text" id="academicYear" class="w-full border rounded p-2"></div>
+                        <div><label class="text-xs font-bold text-slate-500 uppercase">Semester</label><select id="semester" class="w-full border rounded p-2"><option>Ganjil</option><option>Genap</option></select></div>
+                        <div><label class="text-xs font-bold text-slate-500 uppercase">Kelas</label><input type="text" id="className" class="w-full border rounded p-2 bg-slate-100 text-slate-500 cursor-not-allowed" readonly title="Ubah lewat menu kelas di samping"></div>
+                        <div><label class="text-xs font-bold text-slate-500 uppercase">Tgl Laporan</label><input type="date" id="reportDate" class="w-full border rounded p-2"></div>
+                        <div class="md:col-span-2"><label class="text-xs font-bold text-indigo-600 uppercase">Kota Tanda Tangan</label><input type="text" id="signLocation" class="w-full border-indigo-200 bg-indigo-50 rounded p-2"></div>
+                        <div><label class="text-xs font-bold text-slate-500 uppercase">Guru BK</label><input type="text" id="counselorName" class="w-full border rounded p-2"></div>
+                        <div><label class="text-xs font-bold text-slate-500 uppercase">NIP</label><input type="text" id="nip" class="w-full border rounded p-2"></div>
+                    </div>
+                    <div class="mt-8 text-right"><button onclick="saveMetadata(true)" class="bg-indigo-600 text-white px-6 py-2 rounded shadow hover:bg-indigo-700 transition">Simpan Identitas (Global)</button></div>
+                </div>
+            </div>
+
+            <!-- TAB 2: INPUT DATA -->
+            <div id="tab-input" class="view-section max-w-4xl mx-auto">
+                <div class="bg-white rounded-xl shadow-sm border p-8 mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold">1. Persiapan Instrumen</h2>
+                        <button onclick="openGuideModal()" class="text-indigo-600 hover:text-indigo-800 text-sm font-bold flex items-center gap-2">
+                            <i class="fas fa-question-circle"></i> Kalimat Instrumen Google Form
+                        </button>
+                    </div>
+                    <p class="text-sm text-slate-500 mb-4">Gunakan template di bawah ini untuk mengisi data siswa ke aplikasi.</p>
+                    <button onclick="downloadTemplate()" class="bg-green-600 text-white px-6 py-2 rounded shadow flex items-center gap-2 hover:bg-green-700 transition"><i class="fas fa-download"></i> Download Template</button>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm border p-8">
+                    <h2 class="text-xl font-bold mb-4">2. Upload Data untuk <span id="label-class-upload" class="text-indigo-600"></span></h2>
+                    <div class="border-2 border-dashed border-indigo-200 bg-indigo-50 p-8 text-center rounded-xl hover:bg-indigo-100 transition cursor-pointer" onclick="document.getElementById('excelInput').click()">
+                        <div class="text-indigo-400 mb-2"><i class="fas fa-cloud-upload-alt text-4xl"></i></div>
+                        <p class="text-sm text-slate-600 font-semibold">Klik untuk Upload File Excel</p>
+                        <input type="file" id="excelInput" accept=".xlsx, .xls" class="hidden"/>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: LAPORAN -->
+            <div id="tab-report" class="view-section">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800">Preview: <span id="label-class-report"></span></h2>
+                        <p class="text-sm text-slate-500">Klik tombol di kanan untuk generate file PDF.</p>
+                    </div>
+                    <button onclick="generatePurePDF()" class="bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-lg shadow-lg font-bold flex items-center gap-2 transition transform hover:scale-105">
+                        <i class="fas fa-file-pdf text-red-400"></i> DOWNLOAD PDF LENGKAP
+                    </button>
+                </div>
+
+                <div class="bg-white shadow-xl p-8 rounded-xl border mx-auto w-full max-w-full">
+                    <div class="mb-8">
+                        <h3 class="font-bold uppercase text-slate-700 border-b mb-4 pb-2">I. Ringkasan Data</h3>
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+                            <div class="p-4 bg-slate-50 rounded border"><div class="text-2xl font-bold" id="stat-total">0</div><div class="text-xs uppercase">Siswa</div></div>
+                            <div class="p-4 bg-green-50 rounded border border-green-200"><div class="text-2xl font-bold text-green-700" id="stat-star">0</div><div class="text-xs uppercase text-green-700">Populer</div></div>
+                            <div class="p-4 bg-red-50 rounded border border-red-200"><div class="text-2xl font-bold text-red-700" id="stat-rejected">0</div><div class="text-xs uppercase text-red-700">Ditolak</div></div>
+                            <div class="p-4 bg-orange-50 rounded border border-orange-200"><div class="text-2xl font-bold text-orange-700" id="stat-victim">0</div><div class="text-xs uppercase text-orange-700">Rentan</div></div>
+                            <div class="p-4 bg-blue-50 rounded border border-blue-200"><div class="text-2xl font-bold text-blue-700" id="stat-defender">0</div><div class="text-xs uppercase text-blue-700">Defender</div></div>
+                        </div>
+                    </div>
+
+                    <div class="mb-8">
+                        <div class="flex justify-between items-center border-b mb-4 pb-2">
+                            <h3 class="font-bold uppercase text-slate-700">II. Visualisasi Sosiogram (Super Wide)</h3>
+                            <button onclick="randomizeLayout()" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-3 py-1 rounded text-sm font-semibold transition flex items-center gap-2">
+                                <i class="fas fa-random"></i> Acak Posisi / Re-Layout
+                            </button>
+                        </div>
+                        <div id="network-container">
+                            <!-- LEGENDA BARU YANG LENGKAP -->
+                            <div class="absolute top-2 left-2 bg-white/95 border p-3 text-xs z-10 font-sans shadow-md rounded-lg max-w-xs">
+                                <h4 class="font-bold border-b border-slate-200 pb-2 mb-2 text-slate-700">Keterangan Visual</h4>
+                                
+                                <div class="mb-3">
+                                    <p class="font-semibold text-slate-500 mb-1 text-[10px] uppercase">Simbol Siswa</p>
+                                    <div class="flex items-center gap-2 mb-1"><span class="w-3 h-3 bg-blue-500 rounded-sm"></span> <span class="text-slate-700">Laki-laki (Kotak)</span></div>
+                                    <div class="flex items-center gap-2 mb-1"><span class="w-3 h-3 bg-pink-400 rounded-full"></span> <span class="text-slate-700">Perempuan (Bulat)</span></div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <p class="font-semibold text-slate-500 mb-1 text-[10px] uppercase">Status Sosial</p>
+                                    <div class="flex items-center gap-2 mb-1"><span class="w-3 h-3 bg-green-400 border border-green-700 rounded-full"></span> <span class="text-slate-700">Populer (Star) - Hijau</span></div>
+                                    <div class="flex items-center gap-2 mb-1"><span class="w-3 h-3 bg-orange-400 border border-orange-700 rounded-full"></span> <span class="text-slate-700">Rentan (Victim) - Oranye</span></div>
+                                    <div class="flex items-center gap-2 mb-1"><span class="w-3 h-3 bg-blue-600 border border-blue-900 rounded-full"></span> <span class="text-slate-700">Defender (Penolong) - Biru</span></div>
+                                    <div class="flex items-center gap-2 mb-1"><span class="w-3 h-3 bg-red-500 border border-red-800 rounded-full"></span> <span class="text-slate-700">Ditolak (Rejected) - Merah</span></div>
+                                    <div class="flex items-center gap-2"><span class="w-3 h-3 bg-gray-400 border border-gray-600 rounded-full"></span> <span class="text-slate-700">Terisolasi - Abu-abu</span></div>
+                                </div>
+
+                                <div>
+                                    <p class="font-semibold text-slate-500 mb-1 text-[10px] uppercase">Garis Hubungan</p>
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <div class="w-8 h-1 bg-slate-600"></div> 
+                                        <span class="text-slate-700">Pilihan Teman (Tegas)</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-8 h-1 border-t-4 border-blue-600 border-dashed"></div> 
+                                        <span class="text-slate-700">Nominasi Penolong (Putus)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-8">
+                        <h3 class="font-bold uppercase text-slate-700 border-b mb-4 pb-2">III. Data Tabulasi</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left border-collapse border">
+                                <thead class="bg-slate-100">
+                                    <tr><th class="border p-2">Nama</th><th class="border p-2">JK</th><th class="border p-2">Pop</th><th class="border p-2">Tlk</th><th class="border p-2">Status</th></tr>
+                                </thead>
+                                <tbody id="analysis-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer class="app-footer">
+            <p>&copy; 2026 SocioConnect Pro. Dikembangkan oleh <strong>Muhammad Hasratul - Mappaguru Online</strong>.</p>
+        </footer>
+    </main>
+</div>
+
+<!-- TOAST, MODAL CONFIRM, MODAL PROMPT -->
+<div id="toast-container"></div>
+
+<!-- Modal Konfirmasi -->
+<div id="custom-modal-overlay" class="modal-overlay">
+    <div class="modal-box">
+        <div class="text-indigo-600 text-4xl mb-4 text-center"><i class="fas fa-info-circle"></i></div>
+        <h3 id="modal-title" class="text-lg font-bold text-slate-800 mb-2 text-center">Konfirmasi</h3>
+        <p id="modal-desc" class="text-sm text-slate-500 mb-6 text-center">Yakin?</p>
+        <div class="flex gap-3 justify-center">
+            <button onclick="closeModal('custom-modal-overlay')" class="px-4 py-2 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition font-medium">Batal</button>
+            <button id="modal-confirm-btn" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition font-medium">Ya</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Input (Prompt Pengganti) -->
+<div id="prompt-modal-overlay" class="modal-overlay">
+    <div class="modal-box">
+        <div class="text-green-600 text-4xl mb-4 text-center"><i class="fas fa-plus-circle"></i></div>
+        <h3 class="text-lg font-bold text-slate-800 mb-2 text-center">Tambah Kelas Baru</h3>
+        <p class="text-sm text-slate-500 mb-4 text-center">Masukkan nama kelas (Contoh: X-IPA 1)</p>
+        <input type="text" id="prompt-input" class="w-full border rounded p-2 mb-6 text-center font-bold text-slate-700" placeholder="Nama Kelas..." />
+        <div class="flex gap-3 justify-center">
+            <button onclick="closeModal('prompt-modal-overlay')" class="px-4 py-2 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition font-medium">Batal</button>
+            <button onclick="submitPrompt()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition font-medium">Simpan</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Panduan Instrumen Google Form -->
+<div id="guide-modal-overlay" class="modal-overlay">
+    <div class="modal-box max-w-2xl">
+        <div class="flex justify-between items-center border-b pb-4 mb-4">
+            <h3 class="text-xl font-bold text-slate-800">Panduan Instrumen Google Form</h3>
+            <button onclick="closeModal('guide-modal-overlay')" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="space-y-6">
+            <p class="text-sm text-slate-600">Gunakan daftar pertanyaan berikut saat membuat kuesioner di Google Form agar data sinkron dengan template Excel aplikasi ini.</p>
+            
+            <div>
+                <h4 class="font-bold text-indigo-600 mb-2 flex items-center gap-2"><i class="fas fa-user"></i> Identitas Dasar</h4>
+                <ul class="list-disc list-inside text-sm text-slate-700 space-y-1 ml-2">
+                    <li><strong>Nama Lengkap:</strong> (Gunakan tipe Jawaban Singkat atau Dropdown daftar nama kelas)</li>
+                    <li><strong>Jenis Kelamin:</strong> (Gunakan Pilihan Ganda: L atau P)</li>
+                </ul>
+            </div>
+
+            <div>
+                <h4 class="font-bold text-green-600 mb-2 flex items-center gap-2"><i class="fas fa-heart"></i> Aspek Pilihan (Positive)</h4>
+                <p class="text-xs text-slate-500 mb-2 italic">Kalimat instrumen:</p>
+                <div class="bg-slate-50 p-3 rounded border text-sm text-slate-700 leading-relaxed">
+                    "Tuliskan 3 nama teman di kelasmu yang paling kamu sukai untuk bekerja sama dalam belajar atau yang paling ingin kamu jadikan sahabat dekat."
+                    <div class="mt-2 grid grid-cols-1 gap-1">
+                        <span class="text-indigo-500">1. Pilihan Pertama</span>
+                        <span class="text-indigo-500">2. Pilihan Kedua</span>
+                        <span class="text-indigo-500">3. Pilihan Ketiga</span>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h4 class="font-bold text-red-600 mb-2 flex items-center gap-2"><i class="fas fa-user-minus"></i> Aspek Penolakan (Negative)</h4>
+                <p class="text-xs text-slate-500 mb-2 italic">Kalimat instrumen:</p>
+                <div class="bg-slate-50 p-3 rounded border text-sm text-slate-700 leading-relaxed">
+                    "Dalam dinamika kelas, kadang ada teman yang kurang cocok dengan kita. Tuliskan maksimal 2 nama teman yang paling kurang kamu sukai atau paling ingin kamu hindari saat kerja kelompok."
+                    <div class="mt-2 grid grid-cols-1 gap-1">
+                        <span class="text-red-500">1. Penolakan Pertama</span>
+                        <span class="text-red-500">2. Penolakan Kedua</span>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h4 class="font-bold text-orange-600 mb-2 flex items-center gap-2"><i class="fas fa-shield-alt"></i> Deteksi Perundungan (Opsional)</h4>
+                <p class="text-xs text-slate-500 mb-2 italic">Kalimat instrumen:</p>
+                <div class="bg-slate-50 p-3 rounded border text-sm text-slate-700 leading-relaxed space-y-3">
+                    <div>
+                        <strong>Nominasi Korban:</strong> "Siapakah teman di kelasmu yang menurut pengamatanmu paling sering diganggu, diejek, atau dikucilkan oleh teman-teman lainnya?"
+                    </div>
+                    <div>
+                        <strong>Nominasi Penolong:</strong> "Jika ada teman yang sedang diganggu atau sedang dalam kesulitan, siapakah teman di kelasmu yang biasanya berani membela atau menolong mereka?"
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                <p class="text-xs text-indigo-700 font-bold uppercase mb-1">Tips untuk Guru BK:</p>
+                <p class="text-xs text-indigo-600">Pastikan Guru BK membuat Dropdown nama siswa dengan daftar absensi jadi siswa hanya memilih nama mereka dan temannya agar tidak terjadi kesalahan deteksi saat data dipindahkan ke Excel.</p>
+            </div>
+        </div>
+        <div class="mt-8 text-center">
+            <button onclick="closeModal('guide-modal-overlay')" class="bg-slate-800 text-white px-8 py-2 rounded-lg font-bold hover:bg-slate-900">Mengerti</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- MULTI-CLASS MANAGER LOGIC ---
+    let activeClassId = 'default';
+    let allClasses = [];
+
+    // Init Logic
+    function enterApp() {
+        document.getElementById('login-screen').style.display = 'none';
+        document.querySelector('.dashboard-container').style.display = 'flex';
+        
+        // Load list kelas
+        const storedClasses = localStorage.getItem('socio_classes');
+        if (storedClasses) {
+            allClasses = JSON.parse(storedClasses);
+        } else {
+            // Default 1 kelas jika kosong
+            allClasses = [{id: 'cls_default', name: 'Kelas A'}];
+            localStorage.setItem('socio_classes', JSON.stringify(allClasses));
+        }
+        
+        // Set active to first one or last stored
+        const lastActive = localStorage.getItem('socio_active_class_id');
+        activeClassId = (lastActive && allClasses.find(c => c.id === lastActive)) ? lastActive : allClasses[0].id;
+        
+        refreshClassDropdown();
+        loadClassData(activeClassId);
+        switchTab('tab-school');
+    }
+
+    function refreshClassDropdown() {
+        const select = document.getElementById('classDropdown');
+        select.innerHTML = '';
+        allClasses.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.text = c.name;
+            opt.selected = c.id === activeClassId;
+            select.appendChild(opt);
+        });
+        
+        // Update Labels UI
+        const currentName = allClasses.find(c => c.id === activeClassId).name;
+        document.getElementById('header-class-name').innerText = currentName;
+        document.getElementById('className').value = currentName; 
+        document.getElementById('label-class-identity').innerText = `(${currentName})`;
+        document.getElementById('label-class-upload').innerText = currentName;
+        document.getElementById('label-class-report').innerText = currentName;
+    }
+
+    function switchClass(newId) {
+        // Save current first
+        saveMetadata(false); 
+        
+        activeClassId = newId;
+        localStorage.setItem('socio_active_class_id', activeClassId);
+        
+        refreshClassDropdown();
+        loadClassData(activeClassId);
+        showToast(`Beralih ke ${allClasses.find(c => c.id === newId).name}`, 'success');
+    }
+
+    function loadClassData(id) {
+        // Reset Global Vars
+        globalStudents = {};
+        globalStats = { total:0, star:0, rej:0, vic:0, def:0 };
+        document.getElementById('analysis-table-body').innerHTML = '<tr><td colspan="5" class="p-4 text-center">Belum ada data.</td></tr>';
+        document.getElementById('stat-total').innerText = '0';
+        
+        // --- REVISI: LOAD GLOBAL SCHOOL IDENTITY FIRST ---
+        const globalMeta = JSON.parse(localStorage.getItem('socio_global_identity')) || {};
+        
+        // Isi form dengan data global
+        document.getElementById('schoolName').value = globalMeta.school || '';
+        document.getElementById('schoolAddress').value = globalMeta.address || '';
+        document.getElementById('academicYear').value = globalMeta.year || '';
+        document.getElementById('semester').value = globalMeta.semester || '';
+        document.getElementById('reportDate').value = globalMeta.date || '';
+        document.getElementById('signLocation').value = globalMeta.location || '';
+        document.getElementById('counselorName').value = globalMeta.counselor || '';
+        document.getElementById('nip').value = globalMeta.nip || '';
+        
+        // Update Header
+        if(globalMeta.counselor) document.getElementById('header-teacher-name').innerText = globalMeta.counselor;
+
+        // Load Student Data (Class Specific)
+        const studentData = localStorage.getItem(`socio_data_${id}`);
+        if(studentData) {
+            processData(JSON.parse(studentData));
+        } else {
+            if(networkInstance) { networkInstance.destroy(); networkInstance = null; }
+            resetStatsDisplay();
+        }
+    }
+
+    // --- MODAL GUIDES LOGIC ---
+    function openGuideModal() {
+        const overlay = document.getElementById('guide-modal-overlay');
+        overlay.style.display = 'flex';
+        setTimeout(() => overlay.classList.add('show'), 10);
+    }
+
+    // --- CUSTOM MODAL PROMPT LOGIC ---
+    function openPromptModal() {
+        document.getElementById('prompt-input').value = '';
+        const overlay = document.getElementById('prompt-modal-overlay');
+        overlay.style.display = 'flex';
+        setTimeout(() => overlay.classList.add('show'), 10);
+        document.getElementById('prompt-input').focus();
+    }
+
+    function submitPrompt() {
+        const name = document.getElementById('prompt-input').value.trim();
+        if(name) {
+            const newId = 'cls_' + Date.now();
+            allClasses.push({id: newId, name: name});
+            localStorage.setItem('socio_classes', JSON.stringify(allClasses));
+            switchClass(newId);
+            closeModal('prompt-modal-overlay');
+        } else {
+            showToast('Nama kelas tidak boleh kosong!', 'error');
+        }
+    }
+
+    function confirmDeleteClass() {
+        if(allClasses.length <= 1) {
+            showToast('Tidak bisa menghapus kelas terakhir.', 'error');
+            return;
+        }
+        confirmAction(`Hapus ${allClasses.find(c => c.id === activeClassId).name}?`, "Data kelas ini akan hilang permanen.", () => {
+            // Remove data
+            localStorage.removeItem(`socio_data_${activeClassId}`);
+            // No need to remove meta individually as we now use global, but remove backup meta if any
+            localStorage.removeItem(`socio_meta_${activeClassId}`);
+            
+            // Remove from list
+            allClasses = allClasses.filter(c => c.id !== activeClassId);
+            localStorage.setItem('socio_classes', JSON.stringify(allClasses));
+            
+            // Switch to first available
+            switchClass(allClasses[0].id);
+        });
+    }
+
+    function saveMetadata(showNotif = false) {
+        // --- REVISI: SAVE TO GLOBAL IDENTITY ---
+        const meta = {
+            school: document.getElementById('schoolName').value,
+            address: document.getElementById('schoolAddress').value,
+            year: document.getElementById('academicYear').value,
+            semester: document.getElementById('semester').value,
+            location: document.getElementById('signLocation').value,
+            counselor: document.getElementById('counselorName').value,
+            nip: document.getElementById('nip').value,
+            date: document.getElementById('reportDate').value
+        };
+        localStorage.setItem('socio_global_identity', JSON.stringify(meta));
+        
+        if(meta.counselor) document.getElementById('header-teacher-name').innerText = meta.counselor;
+        if(showNotif) showToast('Identitas Sekolah Disimpan (Berlaku Semua Kelas)!');
+    }
+
+    // --- BACKUP & RESTORE SYSTEM ---
+    function backupAllData() {
+        const backup = {
+            version: "10.5",
+            timestamp: new Date().toISOString(),
+            classes: allClasses,
+            globalMeta: localStorage.getItem('socio_global_identity'), // Backup global identity
+            data: {}
+        };
+        
+        allClasses.forEach(c => {
+            backup.data[c.id] = {
+                students: localStorage.getItem(`socio_data_${c.id}`)
+            };
+        });
+
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "Backup_SocioConnect_Full.json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+        showToast('Backup Berhasil Didownload', 'success');
+    }
+
+    function restoreAllData(input) {
+        const file = input.files[0];
+        if(!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const backup = JSON.parse(e.target.result);
+                if(!backup.classes) throw new Error("Format Salah");
+                
+                confirmAction("Restore Backup?", "Data saat ini akan tertimpa!", () => {
+                    localStorage.clear();
+                    
+                    // Restore Classes List
+                    localStorage.setItem('socio_classes', JSON.stringify(backup.classes));
+                    allClasses = backup.classes;
+                    
+                    // Restore Global Identity
+                    if(backup.globalMeta) localStorage.setItem('socio_global_identity', backup.globalMeta);
+                    
+                    // Restore Data per Class
+                    Object.keys(backup.data).forEach(id => {
+                        if(backup.data[id].students) localStorage.setItem(`socio_data_${id}`, backup.data[id].students);
+                    });
+                    
+                    showToast("Restore Berhasil! Memuat ulang...", "success");
+                    setTimeout(() => location.reload(), 1500);
+                });
+            } catch(err) {
+                showToast("Gagal Restore: File Corrupt.", "error");
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    // --- STANDARD APP LOGIC ---
+    let networkInstance = null;
+    let globalStudents = {};
+    let globalStats = {};
+
+    function logout() {
+        document.querySelector('.dashboard-container').style.display = 'none';
+        document.getElementById('login-screen').style.display = 'flex';
+    }
+
+    function switchTab(id) {
+        document.querySelectorAll('.view-section').forEach(e => e.classList.remove('active'));
+        document.querySelectorAll('.menu-item').forEach(e => e.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        if(id === 'tab-report' && networkInstance) {
+            setTimeout(() => { networkInstance.fit(); }, 100);
+        }
+    }
+
+    function downloadTemplate() {
+        const ws = XLSX.utils.aoa_to_sheet([
+            ["Nama", "JK", "Pilihan 1", "Pilihan 2", "Pilihan 3", "Tolak 1", "Tolak 2", "Korban", "Penolong"],
+            ["Budi", "L", "Ani", "Citra", "", "", "", "", "Ani"],
+            ["Ani", "P", "Budi", "", "", "", "", "", ""]
+        ]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Template");
+        XLSX.writeFile(wb, "Template_Sosiometri.xlsx");
+        showToast('Template Berhasil Didownload', 'success');
+    }
+
+    document.getElementById('excelInput').addEventListener('change', (e) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const wb = XLSX.read(ev.target.result, {type:'array'});
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1});
+            
+            localStorage.setItem(`socio_data_${activeClassId}`, JSON.stringify(rows));
+            processData(rows);
+            showToast('Data Berhasil Diimport!');
+            switchTab('tab-report');
+        };
+        reader.readAsArrayBuffer(e.target.files[0]);
+    });
+
+    function processData(rows) {
+        if(rows[0][0]?.toLowerCase().includes('nama')) rows.shift(); 
+        let students = {};
+        rows.forEach(r => {
+            let name = r[0] ? r[0].toString().trim() : null; 
+            if(!name) return;
+            const clean = (val) => val ? val.toString().trim() : null;
+            students[name] = {
+                name: name,
+                jk: clean(r[1])?.toUpperCase() || 'L',
+                choices: [clean(r[2]), clean(r[3]), clean(r[4])].filter(Boolean),
+                rejects: [clean(r[5]), clean(r[6])].filter(Boolean),
+                victimNom: clean(r[7]), 
+                helperNom: clean(r[8]),
+                pop: 0, rej: 0, vic: 0, hlp: 0, status: []
+            };
+        });
+
+        Object.values(students).forEach(s => {
+            s.choices.forEach(t => { if(students[t]) students[t].pop++; });
+            s.rejects.forEach(t => { if(students[t]) students[t].rej++; });
+            if(s.victimNom && students[s.victimNom]) students[s.victimNom].vic++;
+            if(s.helperNom && students[s.helperNom]) students[s.helperNom].hlp++;
+        });
+
+        let stats = { total:0, star:0, rej:0, vic:0, def:0 };
+        Object.values(students).forEach(s => {
+            stats.total++;
+            if(s.pop >= 4) { s.status.push('Bintang'); stats.star++; }
+            if(s.pop === 0 && s.rej === 0) s.status.push('Terisolasi');
+            if(s.rej >= 3) { s.status.push('Ditolak'); stats.rej++; }
+            if(s.vic >= 2) { s.status.push('Rentan'); stats.vic++; }
+            if(s.hlp >= 2) { s.status.push('Defender'); stats.def++; }
+        });
+
+        globalStudents = students;
+        globalStats = stats;
+        updateStatsUI(stats);
+        
+        const tbody = document.getElementById('analysis-table-body');
+        tbody.innerHTML = '';
+        Object.values(students).sort((a,b) => a.name.localeCompare(b.name)).forEach(s => {
+            tbody.innerHTML += `<tr><td class="border p-2">${s.name}</td><td class="border p-2">${s.jk}</td><td class="border p-2">${s.pop}</td><td class="border p-2">${s.rej}</td><td class="border p-2">${s.status.join(', ')}</td></tr>`;
+        });
+        renderNetwork(students);
+    }
+
+    function updateStatsUI(stats) {
+        document.getElementById('stat-total').innerText = stats.total;
+        document.getElementById('stat-star').innerText = stats.star;
+        document.getElementById('stat-rejected').innerText = stats.rej;
+        document.getElementById('stat-victim').innerText = stats.vic;
+        document.getElementById('stat-defender').innerText = stats.def;
+    }
+    
+    function resetStatsDisplay() {
+        updateStatsUI({ total:0, star:0, rej:0, vic:0, def:0 });
+        document.getElementById('analysis-table-body').innerHTML = '';
+    }
+
+    function randomizeLayout() {
+        if(globalStudents && Object.keys(globalStudents).length > 0) {
+            renderNetwork(globalStudents);
+            showToast('Posisi diacak ulang!', 'success');
+        }
+    }
+
+    function renderNetwork(students) {
+        let nodes = [], edges = [];
+        Object.values(students).forEach(s => {
+            let color = s.jk === 'P' ? '#f472b6' : '#60a5fa'; 
+            let shape = s.jk === 'L' ? 'square' : 'dot';
+            let size = 150 + (s.pop*15); 
+            let borderColor = '#ffffff'; 
+
+            if(s.status.includes('Rentan')) { color = '#fb923c'; borderColor = '#c2410c'; } 
+            else if(s.status.includes('Defender')) { color = '#1d4ed8'; size+=30; borderColor = '#1e3a8a'; } 
+            else if(s.status.includes('Bintang')) { color = '#4ade80'; size+=20; borderColor = '#15803d'; } 
+            else if(s.status.includes('Ditolak')) { color = '#ef4444'; borderColor = '#991b1b'; } 
+            else if(s.status.includes('Terisolasi')) { color = '#9ca3af'; borderColor = '#4b5563'; } 
+            
+            nodes.push({
+                id: s.name, 
+                label: s.name, 
+                color: { background: color, border: borderColor },
+                shape: shape, 
+                size: size, 
+                borderWidth: 6,
+                font: { 
+                    size: 350, 
+                    face: 'arial', 
+                    color: '#000000', 
+                    strokeWidth: 60, 
+                    strokeColor: 'rgba(255,255,255,1)', 
+                    bold: true, 
+                    vadjust: -250 
+                },
+                shadow: true
+            });
+
+            s.choices.forEach(t => { 
+                if(students[t]) edges.push({ from: s.name, to: t, arrows: { to: { enabled: true, scaleFactor: 4.0 } }, color:{ color:'#94a3b8', opacity:0.8 }, width: 12 }); 
+            });
+            if(s.helperNom && students[s.helperNom]) edges.push({
+                from: s.name, to: s.helperNom, arrows: { to: { enabled: true, scaleFactor: 4.0 } }, color:{ color:'#2563eb', opacity:1.0 }, dashes:true, width: 15
+            });
+        });
+
+        const container = document.getElementById('network-container');
+        if(networkInstance) networkInstance.destroy();
+        const data = {nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges)};
+        const options = {
+            physics: { 
+                barnesHut: { 
+                    gravitationalConstant: -300000, 
+                    centralGravity: 0.1, 
+                    springLength: 3500, 
+                    springConstant: 0.01, 
+                    damping: 0.09, 
+                    avoidOverlap: 1 
+                }, 
+                stabilization: { iterations: 1000 } 
+            },
+            layout: { improvedLayout: true, randomSeed: Math.random() }, 
+            interaction: { zoomView: true, dragView: true }, 
+            nodes: { borderWidth: 6, shadow: true }, 
+            edges: { smooth: { type: 'continuous' } }
+        };
+        networkInstance = new vis.Network(container, data, options);
+    }
+
+    async function generatePurePDF() {
+        saveMetadata(); 
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [330, 215] });
+        doc.setFont("times", "roman");
+        
+        const clsName = allClasses.find(c => c.id === activeClassId).name;
+        const school = document.getElementById('schoolName').value || "NAMA SEKOLAH";
+        const address = document.getElementById('schoolAddress').value || "Alamat Sekolah";
+        const guru = document.getElementById('counselorName').value || "-";
+        const nipGuru = document.getElementById('nip').value || "-";
+        let dateStr = document.getElementById('reportDate').value;
+        if(dateStr) dateStr = new Date(dateStr).toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'});
+
+        function addHeader(pageNum) {
+            doc.setFontSize(16); doc.setFont("times", "bold");
+            doc.text(school.toUpperCase(), 165, 15, { align: "center" });
+            doc.setFontSize(11); doc.setFont("times", "normal");
+            doc.text(address, 165, 22, { align: "center" });
+            doc.setLineWidth(0.5); doc.line(15, 26, 315, 26);
+            doc.setLineWidth(0.2); doc.line(15, 27, 315, 27);
+            doc.setFontSize(9); doc.setFont("times", "italic");
+            doc.text(`Hal: ${pageNum}`, 315, 33, {align: 'right'});
+        }
+
+        addHeader(1);
+        doc.setFontSize(14); doc.setFont("times", "bold");
+        doc.text("LAPORAN ANALISIS SOSIOMETRI", 165, 35, {align: 'center'});
+        doc.setFontSize(10); doc.setFont("times", "normal");
+        doc.text(`Kelas: ${clsName} | Tanggal: ${dateStr || '-'} | Guru BK: ${guru} | NIP: ${nipGuru}`, 165, 42, {align: 'center'});
+
+        const headersStat = [["TOTAL SISWA", "POPULER (STAR)", "DITOLAK (REJECTED)", "RENTAN (VICTIM)", "DEFENDER"]];
+        const dataStat = [[globalStats.total, globalStats.star, globalStats.rej, globalStats.vic, globalStats.def]];
+        doc.autoTable({
+            head: headersStat, body: dataStat, startY: 50, theme: 'plain',
+            styles: { font: "times", fontSize: 10, halign: 'center', cellPadding: 3, lineColor: [0,0,0], lineWidth: 0.1 },
+            headStyles: { fillColor: [240, 240, 240], fontStyle: 'bold' }, margin: { left: 15, right: 15 }
+        });
+
+        let currentY = doc.lastAutoTable.finalY + 15;
+        doc.setFontSize(12); doc.setFont("times", "bold"); doc.text("ANALISIS DESKRIPTIF & REKOMENDASI", 15, currentY); currentY += 5;
+        
+        const allStudents = Object.values(globalStudents);
+        const formatList = (type) => allStudents.filter(s => s.status.includes(type)).map(s => s.name).join(', ') || "-";
+        
+        let descriptiveRows = [
+            ["KONDISI RENTAN (VICTIM)", `Siswa: ${formatList('Rentan')}\n> Perlu pendekatan personal dan observasi lanjutan.`],
+            ["SISWA DITOLAK (REJECTED)", `Siswa: ${formatList('Ditolak')}\n> Perlu bimbingan kelompok untuk melatih keterampilan sosial.`],
+            ["SISWA TERISOLASI", `Siswa: ${formatList('Terisolasi')}\n> Perlu dilibatkan aktif dalam kegiatan kelompok kelas.`],
+            ["SISWA POPULER (STAR)", `Siswa: ${formatList('Bintang')}\n> Dapat diberdayakan sebagai peer counselor.`],
+            ["POTENSI PENOLONG (DEFENDER)", `Siswa: ${formatList('Defender')}\n> Dapat membantu siswa yang terisolasi.`]
+        ];
+
+        doc.autoTable({
+            body: descriptiveRows, startY: currentY, theme: 'grid',
+            styles: { cellPadding: 4, fontSize: 10, valign: 'middle', lineWidth: 0.1, lineColor: [0, 0, 0], font: "times", textColor: [0,0,0] },
+            columnStyles: { 0: { cellWidth: 60, fontStyle: 'bold', fillColor: [245, 245, 245] }, 1: { cellWidth: 240 } },
+            margin: { left: 15, right: 15 }
+        });
+
+        currentY = doc.lastAutoTable.finalY + 15;
+        if (currentY + 60 > 200) { doc.addPage(); addHeader(2); currentY = 40; }
+        doc.setFontSize(12); doc.setFont("times", "bold"); doc.text("TABULASI DATA LENGKAP", 15, currentY); currentY += 5;
+        
+        const tableBody = allStudents.sort((a,b) => a.name.localeCompare(b.name)).map((s, i) => [i+1, s.name, s.jk, s.choices.join(', ')||'-', s.rejects.join(', ')||'-', s.pop, s.rej, s.status.join(', ')||'-']);
+        doc.autoTable({
+            head: [['No', 'Nama Siswa', 'JK', 'Pilihan', 'Penolakan', 'Pop', 'Tlk', 'Status']], body: tableBody, startY: currentY, theme: 'grid',
+            styles: { font: "times", fontSize: 9, cellPadding: 2, lineColor: [0,0,0], lineWidth: 0.1 },
+            headStyles: { fillColor: [230, 230, 230], textColor: [0,0,0], fontStyle: 'bold', halign: 'center' },
+            columnStyles: { 0: {halign: 'center', cellWidth: 10}, 1: {cellWidth: 'auto'}, 2: {halign: 'center', cellWidth: 10}, 5: {halign: 'center', cellWidth: 10}, 6: {halign: 'center', cellWidth: 10} },
+            margin: { left: 15, right: 15 }
+        });
+
+        currentY = doc.lastAutoTable.finalY + 20;
+        if (currentY + 40 > 200) { doc.addPage(); addHeader('X'); currentY = 40; }
+        let loc = document.getElementById('signLocation').value || address.split(' ')[0].replace(',',''); if(!loc) loc = "Tempat";
+        const xSign = 240; doc.setFont("times", "normal");
+        doc.text(`${loc}, ${dateStr || '...................'}`, xSign, currentY);
+        doc.text("Guru Bimbingan Konseling", xSign, currentY + 5);
+        doc.setFont("times", "bold"); doc.text(guru, xSign, currentY + 30);
+        doc.setFont("times", "normal"); doc.text(`NIP. ${nipGuru}`, xSign, currentY + 36);
+
+        doc.addPage("landscape");
+        doc.setFontSize(14); doc.setFont("times", "bold"); doc.text("LAMPIRAN: VISUALISASI SOSIOGRAM", 15, 12);
+        doc.setFontSize(10); doc.setFont("times", "normal"); 
+        doc.text(`Kelas: ${clsName} | Simbol: Laki-laki=Kotak, Perempuan=Bulat | Warna: Hijau=Populer, Merah=Ditolak, Oranye=Rentan, Biru=Defender, Abu=Terisolasi`, 15, 17);
+        
+        if(networkInstance) {
+            networkInstance.setSize('5000px', '3000px'); networkInstance.fit({animation: false});
+            await new Promise(r => setTimeout(r, 1000));
+            const canvas = document.querySelector('#network-container canvas');
+            if(canvas) {
+                const imgData = canvas.toDataURL("image/png");
+                networkInstance.setSize('100%', '1500px'); networkInstance.fit({animation: false});
+                const imgProps = doc.getImageProperties(imgData);
+                const pageW = 330; 
+                const margin = 2; 
+                const availableW = pageW - (margin*2);
+                const pdfHeight = (imgProps.height * availableW) / imgProps.width;
+                doc.addImage(imgData, 'PNG', margin, 25, availableW, Math.min(pdfHeight, 180));
+            }
+        }
+
+        // --- NEW: HALAMAN RINGKASAN EKSEKUTIF (LANDSCAPE MODERN) ---
+        // Tetap menggunakan format landscape standar (330 x 215 mm) sesuai permintaan
+        doc.addPage("landscape", "mm", [330, 215]);
+        
+        // Warna Latar Belakang Header (Soft Gray)
+        doc.setFillColor(248, 250, 252);
+        doc.rect(0, 0, 330, 30, 'F');
+
+        // Header Title
+        doc.setFontSize(18); 
+        doc.setTextColor(30, 41, 59); // Slate-800
+        doc.setFont("times", "bold");
+        doc.text("RINGKASAN EKSEKUTIF: PROFIL SOSIAL KELAS", 165, 15, { align: "center" });
+        doc.setFontSize(10);
+        doc.setFont("times", "italic");
+        doc.setTextColor(100, 116, 139); // Slate-500
+        doc.text("Dokumen ini menyajikan interpretasi diagnostik berdasarkan data sosiometri terkini.", 165, 22, { align: "center" });
+
+        // Garis Pemisah Header
+        doc.setDrawColor(203, 213, 225); // Slate-300
+        doc.line(15, 30, 315, 30);
+
+        // --- Konten Utama: 2 Kolom Grid ---
+        let contentY = 45;
+        doc.setTextColor(0, 0, 0); // Reset ke hitam
+
+        // Intro Text
+        doc.setFontSize(11);
+        doc.setFont("times", "normal");
+        const introText = `Laporan ini disusun sebagai dasar pertimbangan strategis bagi pendidik dalam memahami konfigurasi sosial kelas ${clsName}. Data dikumpulkan dan dianalisis pada tanggal ${dateStr || '[Tanggal]'} dengan metode nominasi sosiometri standar.`;
+        doc.text(doc.splitTextToSize(introText, 300), 15, contentY);
+        contentY += 15;
+
+        // Grid Layout: Kiri (Kekuatan) & Kanan (Perhatian)
+        // Definisikan area
+        const colWidth = 145;
+        const colGap = 10;
+        const leftX = 15;
+        const rightX = leftX + colWidth + colGap;
+        
+        // Header Kolom Kiri
+        doc.setFillColor(220, 252, 231); // Green-100
+        doc.rect(leftX, contentY, colWidth, 10, 'F');
+        doc.setFontSize(12);
+        doc.setFont("times", "bold");
+        doc.setTextColor(21, 128, 61); // Green-700
+        doc.text("INDIKATOR KEKUATAN & POTENSI POSITIF", leftX + 5, contentY + 7);
+
+        // Header Kolom Kanan
+        doc.setFillColor(254, 226, 226); // Red-100
+        doc.rect(rightX, contentY, colWidth, 10, 'F');
+        doc.setTextColor(185, 28, 28); // Red-700
+        doc.text("INDIKATOR RISIKO & AREA PERHATIAN", rightX + 5, contentY + 7);
+
+        contentY += 15;
+        doc.setFontSize(11);
+        doc.setTextColor(0,0,0);
+        doc.setFont("times", "normal");
+
+        // Isi Kolom Kiri (Kekuatan)
+        let leftContent = [];
+        if (globalStats.star > 0) {
+            leftContent.push(`• Siswa Populer (Star): Teridentifikasi ${globalStats.star} siswa yang memiliki pengaruh sosial dominan. Mereka adalah aset potensial untuk menjadi agen perubahan positif.`);
+        } else {
+            leftContent.push(`• Distribusi Kepemimpinan: Tidak ditemukan dominasi tunggal (Star), yang mengindikasikan kepemimpinan tersebar merata.`);
+        }
+        if (globalStats.def > 0) {
+            leftContent.push(`• Potensi Defender: Terdapat ${globalStats.def} siswa yang dinominasikan sebagai penolong. Kehadiran mereka krusial dalam menciptakan jaring pengaman sosial.`);
+        }
+        
+        // Isi Kolom Kanan (Risiko)
+        let rightContent = [];
+        if (globalStats.vic > 0 || globalStats.rej > 0 || globalStats.total - (globalStats.star + globalStats.rej + globalStats.vic + globalStats.def) < 0) { // Simplifikasi logika
+             if (globalStats.vic > 0) rightContent.push(`• Indikasi Kerentanan: ${globalStats.vic} siswa terdeteksi dalam posisi rentan (Victim). Diperlukan monitoring intensif untuk mencegah intimidasi.`);
+             if (globalStats.rej > 0) rightContent.push(`• Penolakan Eksplisit: Ditemukan ${globalStats.rej} siswa yang mengalami penolakan aktif (Rejected). Intervensi segera melalui konseling kelompok sangat disarankan.`);
+             // Cek isolasi manual atau general statement
+             rightContent.push(`• Segmentasi Sosial: Adanya polarisasi kelompok yang mungkin menghambat kohesivitas kelas secara keseluruhan.`);
+        } else {
+            rightContent.push(`• Stabilitas Sosial: Tidak ditemukan indikator penolakan ekstrem atau kerentanan mayor. Suasana kelas relatif kondusif dan aman.`);
+        }
+
+        // Render Teks Kolom (Manual wrap)
+        let lY = contentY;
+        leftContent.forEach(txt => {
+            const lines = doc.splitTextToSize(txt, colWidth - 5);
+            doc.text(lines, leftX, lY);
+            lY += (lines.length * 5) + 3;
+        });
+
+        let rY = contentY;
+        rightContent.forEach(txt => {
+            const lines = doc.splitTextToSize(txt, colWidth - 5);
+            doc.text(lines, rightX, rY);
+            rY += (lines.length * 5) + 3;
+        });
+
+        // Tentukan Y terendah untuk bagian selanjutnya
+        let nextY = Math.max(lY, rY) + 10;
+
+        // Bagian Rekomendasi (Full Width)
+        doc.setFillColor(241, 245, 249); // Slate-100
+        doc.rect(15, nextY, 300, 10, 'F');
+        doc.setFontSize(12);
+        doc.setFont("times", "bold");
+        doc.setTextColor(51, 65, 85); // Slate-700
+        doc.text("REKOMENDASI STRATEGIS & TINDAK LANJUT", 20, nextY + 7);
+        
+        nextY += 15;
+        doc.setFontSize(11);
+        doc.setFont("times", "normal");
+        doc.setTextColor(0,0,0);
+
+        const recommendations = [
+            "1. Pengaturan Tempat Duduk: Disarankan merotasi denah tempat duduk secara berkala dengan memasangkan siswa terisolasi bersama siswa 'Defender' untuk menstimulasi interaksi.",
+            "2. Dinamika Kelompok: Dalam tugas kelompok, hindari pemilihan anggota secara bebas. Guru disarankan menunjuk anggota kelompok secara heterogen untuk memecah eksklusivitas 'geng'.",
+            "3. Layanan Responsif: Guru BK agar segera menjadwalkan konseling individual bagi siswa yang terindikasi 'Rejected' untuk penguatan konsep diri dan keterampilan sosial."
+        ];
+
+        recommendations.forEach(rec => {
+            const lines = doc.splitTextToSize(rec, 300);
+            doc.text(lines, 15, nextY);
+            nextY += (lines.length * 5) + 2;
+        });
+
+        // Footer Signatures
+        // Jika tidak cukup tempat, buat halaman baru
+        if (nextY > 160) {
+             doc.addPage("landscape", "mm", [330, 215]);
+             nextY = 40;
+        } else {
+            nextY += 10; // Jarak sebelum tanda tangan
+        }
+
+        const signX = 240; 
+        doc.text(`${loc}, ${dateStr || '...................'}`, signX, nextY);
+        doc.text("Dibuat Oleh,", signX, nextY + 5);
+        doc.text("Guru Bimbingan Konseling", signX, nextY + 10);
+        doc.setFont("times", "bold");
+        doc.text(guru, signX, nextY + 35);
+        doc.setFont("times", "normal");
+        doc.text(`NIP. ${nipGuru}`, signX, nextY + 41);
+
+        doc.save(`Laporan_Sosiometri_${clsName}.pdf`);
+        showToast('PDF Berhasil Dibuat!', 'success');
+    }
+
+    function resetAnalysis() {
+        localStorage.removeItem(`socio_data_${activeClassId}`);
+        globalStudents = {};
+        globalStats = { total:0, star:0, rej:0, vic:0, def:0 };
+        document.getElementById('analysis-table-body').innerHTML = '<tr><td colspan="5" class="p-4 text-center">Belum ada data.</td></tr>';
+        updateStatsUI(globalStats);
+        if(networkInstance) { networkInstance.destroy(); networkInstance = null; }
+        showToast('Hasil Analisis Kelas Ini Direset', 'success');
+    }
+
+    function resetApp() {
+        localStorage.clear(); 
+        location.reload(); 
+    }
+
+    function showToast(msg, type='success') {
+        const t = document.createElement('div'); t.className = `toast ${type === 'success' ? 'toast-success' : 'toast-error'}`;
+        t.innerHTML = `<i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle"></i> <span>${msg}</span>`;
+        document.getElementById('toast-container').appendChild(t);
+        setTimeout(() => t.classList.add('show'), 10);
+        setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 3000);
+    }
+    
+    let cb = null;
+    function confirmAction(t, d, c) {
+        document.getElementById('modal-title').innerText = t; document.getElementById('modal-desc').innerText = d;
+        cb = c; 
+        const overlay = document.getElementById('custom-modal-overlay');
+        overlay.style.display = 'flex';
+        setTimeout(() => overlay.classList.add('show'), 10);
+    }
+    document.getElementById('modal-confirm-btn').onclick = () => { if(cb) cb(); closeModal('custom-modal-overlay'); };
+    
+    function closeModal(id) {
+        const overlay = document.getElementById(id);
+        overlay.classList.remove('show');
+        setTimeout(() => overlay.style.display = 'none', 200);
+        if(id === 'custom-modal-overlay') cb = null;
+    }
+</script>
+</body>
+</html>
+</html>
