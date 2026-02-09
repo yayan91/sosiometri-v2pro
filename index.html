@@ -877,18 +877,35 @@
         doc.text(`Kelas: ${clsName} | Simbol: Laki-laki=Kotak, Perempuan=Bulat | Warna: Hijau=Populer, Merah=Ditolak, Oranye=Rentan, Biru=Defender, Abu=Terisolasi`, 15, 17);
         
         if(networkInstance) {
-            networkInstance.setSize('5000px', '3000px'); networkInstance.fit({animation: false});
+            // OPTIMISASI UKURAN FILE PDF
+            // 1. Kurangi resolusi dari 5000px ke 2000px (Cukup untuk PDF dan mengurangi ukuran file drastis)
+            networkInstance.setSize('2000px', '1200px'); 
+            networkInstance.fit({animation: false});
             await new Promise(r => setTimeout(r, 1000));
             const canvas = document.querySelector('#network-container canvas');
             if(canvas) {
-                const imgData = canvas.toDataURL("image/png");
-                networkInstance.setSize('100%', '1500px'); networkInstance.fit({animation: false});
+                // 2. Pastikan background putih (agar JPEG tidak hitam karena transparan)
+                const context = canvas.getContext('2d');
+                context.save();
+                context.globalCompositeOperation = 'destination-over';
+                context.fillStyle = '#ffffff';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                context.restore();
+
+                // 3. Gunakan JPEG dengan kualitas 0.75 (bukan PNG)
+                const imgData = canvas.toDataURL("image/jpeg", 0.75);
+                
+                // Kembalikan ukuran tampilan asli
+                networkInstance.setSize('100%', '1500px'); 
+                networkInstance.fit({animation: false});
+                
                 const imgProps = doc.getImageProperties(imgData);
                 const pageW = 330; 
                 const margin = 2; 
                 const availableW = pageW - (margin*2);
                 const pdfHeight = (imgProps.height * availableW) / imgProps.width;
-                doc.addImage(imgData, 'PNG', margin, 25, availableW, Math.min(pdfHeight, 180));
+                // Add Image sebagai JPEG
+                doc.addImage(imgData, 'JPEG', margin, 25, availableW, Math.min(pdfHeight, 180));
             }
         }
 
